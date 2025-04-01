@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:location/location.dart';
 
 class Geohome extends StatefulWidget {
   const Geohome({super.key});
@@ -10,60 +10,59 @@ class Geohome extends StatefulWidget {
 }
 
 class _GeohomeState extends State<Geohome> {
-  Timer? _timer;
+  final Location _location = Location();
+  LocationData? _currentLocation;
+  StreamSubscription<LocationData>? _locationSubscription;
   String _locationMessage = "Ubicación no disponible";
 
   @override
   void initState() {
     super.initState();
-    _startLocationUpdates();
+    _requestPermissionAndStart();
   }
 
-  // Función para solicitar permisos de ubicación
-  Future<void> _checkAndRequestPermissions() async {
-    LocationPermission permission = await Geolocator.checkPermission();
+  // Solicitar permisos de ubicación y activar el modo background
+  Future<void> _requestPermissionAndStart() async {
+    bool _serviceEnabled;
+    PermissionStatus _permissionGranted;
 
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        print('❌ Permiso denegado');
+    _serviceEnabled = await _location.serviceEnabled();
+    if (!_serviceEnabled) {
+      _serviceEnabled = await _location.requestService();
+      if (!_serviceEnabled) {
+        print("❌ Servicio de ubicación deshabilitado");
         return;
       }
     }
 
-    if (permission == LocationPermission.deniedForever) {
-      print('❌ Permisos denegados permanentemente');
-      return;
+    _permissionGranted = await _location.hasPermission();
+    if (_permissionGranted == PermissionStatus.denied) {
+      _permissionGranted = await _location.requestPermission();
+      if (_permissionGranted != PermissionStatus.granted) {
+        print("❌ Permiso denegado");
+        return;
+      }
     }
+
+    _location.enableBackgroundMode(enable: true);
+    _startLocationUpdates();
   }
 
-  // Función para obtener la ubicación
-  Future<void> _getLocation() async {
-    await _checkAndRequestPermissions();
-
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-
-    setState(() {
-      _locationMessage =
-          "Lat: ${position.latitude}, Lng: ${position.longitude}";
-    });
-
-    print("📍 Ubicación actualizada: $_locationMessage");
-  }
-
-  // Iniciar actualizaciones cada 10 segundos
+  // Obtener la ubicación en tiempo real
   void _startLocationUpdates() {
-    _timer?.cancel(); // Cancela el temporizador si ya existe
-    _timer = Timer.periodic(const Duration(seconds: 10), (Timer t) {
-      _getLocation();
+    _locationSubscription?.cancel();
+    _locationSubscription = _location.onLocationChanged.listen((LocationData newLocation) {
+      setState(() {
+        _currentLocation = newLocation;
+        _locationMessage = "Lat: ${newLocation.latitude}, Lng: ${newLocation.longitude}";
+      });
+      print("📍 Ubicación actualizada: $_locationMessage");
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel(); // Cancela el timer al cerrar la app
+    _locationSubscription?.cancel(); // Cancelar la suscripción al cerrar la app
     super.dispose();
   }
 
@@ -78,7 +77,7 @@ class _GeohomeState extends State<Geohome> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_locationMessage, style: TextStyle(fontSize: 16)),
+            Text(_locationMessage, style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _startLocationUpdates,
