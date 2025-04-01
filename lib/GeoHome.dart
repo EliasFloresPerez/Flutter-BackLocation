@@ -60,6 +60,15 @@ class _GeohomeState extends State<Geohome> {
     });
   }
 
+  // Detener la actualización de ubicación
+  void _stopLocationUpdates() {
+    _locationSubscription?.cancel();
+    setState(() {
+      _locationMessage = "Seguimiento detenido";
+    });
+    print("⛔ Seguimiento detenido");
+  }
+
   @override
   void dispose() {
     _locationSubscription?.cancel(); // Cancelar la suscripción al cerrar la app
@@ -82,6 +91,11 @@ class _GeohomeState extends State<Geohome> {
             ElevatedButton(
               onPressed: _startLocationUpdates,
               child: const Text('Iniciar Seguimiento'),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: _stopLocationUpdates,
+              child: const Text('Detener Seguimiento'),
             ),
           ],
         ),
